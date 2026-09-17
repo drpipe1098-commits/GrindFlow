@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
 
 
 def main() -> int:
-    tmp = Path(tempfile.mkdtemp(prefix="mediavault-verif-"))
+    tmp = Path(tempfile.mkdtemp(prefix="grindflow-verif-"))
     source = tmp / "con_gps.jpg"
 
     Image.new("RGB", (400, 300), (120, 40, 80)).save(source, "JPEG")

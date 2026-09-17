@@ -9,12 +9,12 @@
 --   admin_plataforma: rol 'admin' global, sin membresia en ninguna.
 
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('00000000-0000-0000-0000-00000000a001', 'admin@mediavault.test',  '{"role":"admin"}'),
-  ('00000000-0000-0000-0000-00000000a002', 'studioa@mediavault.test','{"role":"studio"}'),
-  ('00000000-0000-0000-0000-00000000a003', 'editora@mediavault.test','{"role":"editor"}'),
-  ('00000000-0000-0000-0000-00000000a004', 'modela1@mediavault.test','{"role":"model"}'),
-  ('00000000-0000-0000-0000-00000000a005', 'modela2@mediavault.test','{"role":"model"}'),
-  ('00000000-0000-0000-0000-00000000b001', 'studiob@mediavault.test','{"role":"studio"}');
+  ('00000000-0000-0000-0000-00000000a001', 'admin@grindflow.test',  '{"role":"admin"}'),
+  ('00000000-0000-0000-0000-00000000a002', 'studioa@grindflow.test','{"role":"studio"}'),
+  ('00000000-0000-0000-0000-00000000a003', 'editora@grindflow.test','{"role":"editor"}'),
+  ('00000000-0000-0000-0000-00000000a004', 'modela1@grindflow.test','{"role":"model"}'),
+  ('00000000-0000-0000-0000-00000000a005', 'modela2@grindflow.test','{"role":"model"}'),
+  ('00000000-0000-0000-0000-00000000b001', 'studiob@grindflow.test','{"role":"studio"}');
 
 insert into public.organizations (id, name, slug, type) values
   ('00000000-0000-0000-0000-0000000000aa', 'Agencia Alfa', 'agencia-alfa', 'studio'),

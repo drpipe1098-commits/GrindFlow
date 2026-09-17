@@ -191,7 +191,7 @@ async function loadCredential(
   return {
     secret: decryptSecret(
       credential.secret_ciphertext,
-      `mediavault:credential:${credential.organization_id}:${credential.platform}`,
+      `grindflow:credential:${credential.organization_id}:${credential.platform}`,
     ),
     accountIdentifier: credential.account_identifier,
     settings: credential.settings,

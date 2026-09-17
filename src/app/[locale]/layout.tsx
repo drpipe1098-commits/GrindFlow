@@ -6,7 +6,7 @@ import { routing, type Locale } from '@/i18n/routing';
 import '../globals.css';
 
 export const metadata: Metadata = {
-  title: 'MediaVault',
+  title: 'GrindFlow',
   description: 'Vault de contenido, distribucion automatizada y embudos de trafico',
   // Este panel no debe aparecer en buscadores bajo ninguna circunstancia.
   robots: { index: false, follow: false },

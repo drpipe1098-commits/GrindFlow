@@ -17,7 +17,7 @@ import {
 } from '@/lib/crypto/secrets';
 
 const TOKEN = '1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw';
-const CONTEXT = 'mediavault:credential:org-alfa:telegram';
+const CONTEXT = 'grindflow:credential:org-alfa:telegram';
 
 describe('ida y vuelta', () => {
   it('devuelve el secreto original', () => {
@@ -99,16 +99,16 @@ describe('el contexto ata el secreto a su fila', () => {
   it('no se descifra con el contexto de otra organizacion', () => {
     // Es el ataque concreto: copiar el secret_ciphertext de una agencia a la
     // fila de otra. Sin AAD funcionaria y el token quedaria robado.
-    const cifrado = encryptSecret(TOKEN, 'mediavault:credential:org-alfa:telegram');
+    const cifrado = encryptSecret(TOKEN, 'grindflow:credential:org-alfa:telegram');
     expect(() =>
-      decryptSecret(cifrado, 'mediavault:credential:org-beta:telegram'),
+      decryptSecret(cifrado, 'grindflow:credential:org-beta:telegram'),
     ).toThrow(SecretCryptoError);
   });
 
   it('no se descifra con el contexto de otra plataforma', () => {
-    const cifrado = encryptSecret(TOKEN, 'mediavault:credential:org-alfa:telegram');
+    const cifrado = encryptSecret(TOKEN, 'grindflow:credential:org-alfa:telegram');
     expect(() =>
-      decryptSecret(cifrado, 'mediavault:credential:org-alfa:x'),
+      decryptSecret(cifrado, 'grindflow:credential:org-alfa:x'),
     ).toThrow(SecretCryptoError);
   });
 

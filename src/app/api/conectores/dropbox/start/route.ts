@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   // El nonce viaja tambien en una cookie httpOnly. El `state` firmado ya impide
   // fabricar uno valido; esto ademas impide REUTILIZAR uno capturado desde otro
   // navegador, porque sin la cookie no se puede completar el flujo.
-  response.cookies.set('mv_oauth_nonce', nonce, {
+  response.cookies.set('gf_oauth_nonce', nonce, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
   // La carpeta elegida se recuerda aparte: no cabe en el `state` sin alargarlo.
   if (parsed.data.carpeta !== undefined && parsed.data.carpeta !== '') {
-    response.cookies.set('mv_oauth_carpeta', parsed.data.carpeta, {
+    response.cookies.set('gf_oauth_carpeta', parsed.data.carpeta, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

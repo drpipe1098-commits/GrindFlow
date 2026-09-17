@@ -77,7 +77,7 @@ export default async function PanelLayout({
   return (
     <div className="flex min-h-screen">
       <nav className="flex w-60 shrink-0 flex-col gap-1 border-r border-ink-800 bg-ink-900 p-4">
-        <p className="px-3 pb-4 text-lg font-semibold tracking-tight">MediaVault</p>
+        <p className="px-3 pb-4 text-lg font-semibold tracking-tight">GrindFlow</p>
 
         {NAV[role].map(({ href, labelKey, Icon }) => (
           <Link

@@ -25,8 +25,8 @@ export const runtime = 'nodejs';
 function backToPanel(result: string): NextResponse {
   const base = publicEnv().NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   const response = NextResponse.redirect(`${base}/studio/conectores?resultado=${result}`);
-  response.cookies.delete('mv_oauth_nonce');
-  response.cookies.delete('mv_oauth_carpeta');
+  response.cookies.delete('gf_oauth_nonce');
+  response.cookies.delete('gf_oauth_carpeta');
   return response;
 }
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     return backToPanel('state_invalido');
   }
 
-  const cookieNonce = request.cookies.get('mv_oauth_nonce')?.value;
+  const cookieNonce = request.cookies.get('gf_oauth_nonce')?.value;
   if (cookieNonce === undefined || cookieNonce !== payload.nonce) {
     return backToPanel('state_invalido');
   }
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     // conexion moriria en cuatro horas y el escaneo dejaria de funcionar esa
     // misma tarde.
     const account = await getCurrentAccount(tokens.accessToken);
-    const carpeta = request.cookies.get('mv_oauth_carpeta')?.value ?? null;
+    const carpeta = request.cookies.get('gf_oauth_carpeta')?.value ?? null;
 
     await storeCloudConnection({
       organizationId: payload.organizationId,

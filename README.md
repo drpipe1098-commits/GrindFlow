@@ -1,4 +1,4 @@
-# MediaVault & Traffic Engine
+# GrindFlow & Traffic Engine
 
 Plataforma SaaS multi-tenant para estudios de contenido adulto y modelos
 independientes: vault de material, sanitizacion anti-doxxing, programacion con
@@ -130,13 +130,17 @@ docker-compose.yml       Orquestacion para VPS propio
 
 ## Siguiente entrega
 
-1. **Fase 7**: paneles de analitica y finanzas (`/studio/analytics`,
+1. **Identidad visual y estetica** (requerimiento nuevo): logo, iconografia,
+   sistema de color, tipografia y estilo de componentes. Conviene antes de las
+   pantallas nuevas, para no construirlas sobre la paleta provisional. Las
+   preguntas abiertas estan en `AGENTS.md`.
+2. **Fase 7**: paneles de analitica y finanzas (`/studio/analytics`,
    `/studio/finances`).
-2. **Primera publicacion real** en Telegram, y primera conexion real a Dropbox y
+3. **Primera publicacion real** en Telegram, y primera conexion real a Dropbox y
    Drive. Nada se ha ejecutado contra las APIs: el entorno de desarrollo no
    alcanza internet.
-3. **X, Reddit y Bluesky**, que hoy estan registrados sin implementar.
-4. **Conectar un proveedor de IA real** al generador de textos.
+4. **X, Reddit y Bluesky**, que hoy estan registrados sin implementar.
+5. **Conectar un proveedor de IA real** al generador de textos.
 
 El Modulo 5 (runners de publicacion a Telegram, X, Reddit y Bluesky) sigue
 modelado en la base pero sin implementar. Ver `AGENTS.md`.

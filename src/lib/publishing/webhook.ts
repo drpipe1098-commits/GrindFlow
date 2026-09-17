@@ -16,7 +16,7 @@ import type { PlatformPublisher, PublishOutcome, PublishRequest } from './publis
  * endpoint desconocido es una forma barata de agotar su servidor.
  */
 
-const SIGNATURE_HEADER = 'X-MediaVault-Signature';
+const SIGNATURE_HEADER = 'X-GrindFlow-Signature';
 const MAX_URL_AGE_SECONDS = 900;
 
 export const webhookPublisher: PlatformPublisher = {

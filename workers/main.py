@@ -33,7 +33,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-7s %(message)s",
 )
-log = logging.getLogger("mediavault.worker")
+log = logging.getLogger("grindflow.worker")
 
 _stop_requested = False
 
@@ -66,7 +66,7 @@ def handle_sanitize(job: Job, config: Config, queue: Queue, client) -> None:
     if not asset_key or not asset_id:
         raise SanitizeError("payload incompleto: faltan r2_key o asset_id")
 
-    with tempfile.TemporaryDirectory(prefix="mediavault-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="grindflow-") as tmp:
         workdir = Path(tmp)
         original = download(client, config.r2_bucket, asset_key, workdir / "original")
         derivatives: dict[str, str] = {}

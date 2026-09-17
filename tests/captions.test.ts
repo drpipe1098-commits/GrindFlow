@@ -24,7 +24,7 @@ import {
   type ValidationOptions,
 } from '@/lib/captions';
 
-const HOSTS = ['go.mediavault.link', 'onlyfans.com'] as const;
+const HOSTS = ['go.grindflow.link', 'onlyfans.com'] as const;
 
 const opts = (overrides: Partial<ValidationOptions> = {}): ValidationOptions => ({
   platform: 'telegram',
@@ -100,7 +100,7 @@ describe('sin falsos positivos', () => {
 
   it('acepta un texto normal con su enlace', () => {
     const result = validateCaption(
-      'Set nuevo recien subido. Todo aqui https://go.mediavault.link/alfa-01',
+      'Set nuevo recien subido. Todo aqui https://go.grindflow.link/alfa-01',
       opts(),
     );
     expect(result.ok).toBe(true);
@@ -115,13 +115,13 @@ describe('longitud por plataforma', () => {
 
   it('cuenta cada URL como 23 caracteres en X', () => {
     // X reescribe todo enlace a t.co: medir la URL real rechazaria textos que caben.
-    const urlLarga = `https://go.mediavault.link/${'b'.repeat(200)}`;
+    const urlLarga = `https://go.grindflow.link/${'b'.repeat(200)}`;
     expect(measureLength(`Mira ${urlLarga}`, 'x')).toBe('Mira '.length + 23);
   });
 
   it('acepta en X un texto cuya URL larga cabe por el peso fijo', () => {
     const result = validateCaption(
-      `Set nuevo https://go.mediavault.link/${'c'.repeat(150)}`,
+      `Set nuevo https://go.grindflow.link/${'c'.repeat(150)}`,
       opts({ platform: 'x' }),
     );
     expect(result.ok).toBe(true);
@@ -190,7 +190,7 @@ describe('enlaces', () => {
 
   it('rechaza mas enlaces de los permitidos', () => {
     const result = validateCaption(
-      'Uno https://go.mediavault.link/a dos https://go.mediavault.link/b',
+      'Uno https://go.grindflow.link/a dos https://go.grindflow.link/b',
       opts({ platform: 'x' }),
     );
     expect(codes(result)).toContain('demasiados_enlaces');
@@ -202,7 +202,7 @@ describe('enlaces', () => {
   });
 
   it('tolera la puntuacion pegada al final de la URL', () => {
-    const result = validateCaption('Mira https://go.mediavault.link/alfa-01.', opts());
+    const result = validateCaption('Mira https://go.grindflow.link/alfa-01.', opts());
     expect(result.ok).toBe(true);
   });
 });
@@ -257,7 +257,7 @@ describe('tuberia completa', () => {
     platform: 'telegram',
     handle: 'alfa_uno',
     outfitTag: 'lenceria-roja',
-    destinationUrl: 'https://go.mediavault.link/alfa-01',
+    destinationUrl: 'https://go.grindflow.link/alfa-01',
     locale: 'es',
     maxLength: 1024,
     ...overrides,
@@ -272,7 +272,7 @@ describe('tuberia completa', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.caption).toContain('go.mediavault.link');
+      expect(result.caption).toContain('go.grindflow.link');
       expect(result.attempts).toBe(1);
     }
   });
@@ -312,8 +312,8 @@ describe('tuberia completa', () => {
         return {
           text:
             llamadas === 1
-              ? 'set teen nuevo https://go.mediavault.link/a'
-              : 'set nuevo https://go.mediavault.link/a',
+              ? 'set teen nuevo https://go.grindflow.link/a'
+              : 'set nuevo https://go.grindflow.link/a',
           provider: 'corrige',
         };
       },
@@ -384,7 +384,7 @@ describe('garantia de tipo: el filtro no se puede saltar', () => {
     const falso: PublishableCaption = 'texto que nunca paso por el filtro';
     expect(typeof falso).toBe('string');
 
-    const result = validateCaption('Set nuevo https://go.mediavault.link/a', opts());
+    const result = validateCaption('Set nuevo https://go.grindflow.link/a', opts());
     expect(result.ok).toBe(true);
     if (result.ok) {
       const valido: PublishableCaption = result.caption;

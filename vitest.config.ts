@@ -12,7 +12,7 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: 'clave-de-servicio-solo-para-pruebas-0000',
       R2_ACCESS_KEY_ID: 'pruebas',
       R2_SECRET_ACCESS_KEY: 'pruebas',
-      R2_BUCKET: 'mediavault-pruebas',
+      R2_BUCKET: 'grindflow-pruebas',
       R2_ENDPOINT: 'http://127.0.0.1:9000',
       R2_REGION: 'auto',
       UPLOAD_LINK_SECRET: '0'.repeat(64),

@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
     maxAge: 600,
   };
 
-  response.cookies.set('mv_oauth_nonce', nonce, cookieOptions);
+  response.cookies.set('gf_oauth_nonce', nonce, cookieOptions);
   if (parsed.data.carpeta !== undefined && parsed.data.carpeta !== '') {
-    response.cookies.set('mv_oauth_carpeta', parsed.data.carpeta, cookieOptions);
+    response.cookies.set('gf_oauth_carpeta', parsed.data.carpeta, cookieOptions);
   }
 
   return response;

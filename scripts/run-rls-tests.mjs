@@ -14,7 +14,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ADMIN_URL = process.env.RLS_TEST_ADMIN_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
-const DB_NAME = process.env.RLS_TEST_DB ?? `mediavault_rls_${process.pid}`;
+const DB_NAME = process.env.RLS_TEST_DB ?? `grindflow_rls_${process.pid}`;
 const TEST_URL = new URL(ADMIN_URL);
 TEST_URL.pathname = `/${DB_NAME}`;
 

@@ -32,7 +32,7 @@ function driveCredentials(): { clientId: string; clientSecret: string } {
  * porque el contexto ya no coincide y el descifrado falla.
  */
 function cloudContext(organizationId: string, provider: CloudProvider): string {
-  return `mediavault:cloud:${organizationId}:${provider}`;
+  return `grindflow:cloud:${organizationId}:${provider}`;
 }
 
 export interface StoreConnectionInput {

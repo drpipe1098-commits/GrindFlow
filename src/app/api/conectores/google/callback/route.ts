@@ -11,8 +11,8 @@ export const runtime = 'nodejs';
 function backToPanel(result: string): NextResponse {
   const base = publicEnv().NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   const response = NextResponse.redirect(`${base}/studio/conectores?resultado=${result}`);
-  response.cookies.delete('mv_oauth_nonce');
-  response.cookies.delete('mv_oauth_carpeta');
+  response.cookies.delete('gf_oauth_nonce');
+  response.cookies.delete('gf_oauth_carpeta');
   return response;
 }
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     return backToPanel('state_invalido');
   }
 
-  const cookieNonce = request.cookies.get('mv_oauth_nonce')?.value;
+  const cookieNonce = request.cookies.get('gf_oauth_nonce')?.value;
   if (cookieNonce === undefined || cookieNonce !== payload.nonce) {
     return backToPanel('state_invalido');
   }
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       expiresInSeconds: tokens.expiresInSeconds,
       scopes: tokens.scopes,
       // Drive identifica las carpetas por id opaco, no por ruta.
-      rootFolderId: request.cookies.get('mv_oauth_carpeta')?.value ?? null,
+      rootFolderId: request.cookies.get('gf_oauth_carpeta')?.value ?? null,
       rootFolderPath: null,
       createdBy: context.user.id,
     });

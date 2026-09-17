@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "MediaVault",
+    "name": "GrindFlow",
     "tagline": "Vault de contenido, distribucion automatizada y embudos de trafico"
   },
   "nav": {
@@ -34,7 +34,7 @@
     "signedOut": "Sesion cerrada"
   },
   "home": {
-    "heading": "MediaVault & Traffic Engine",
+    "heading": "GrindFlow & Traffic Engine",
     "body": "Plataforma multi-tenant para estudios y modelos independientes.",
     "cta": "Entrar al panel"
   },

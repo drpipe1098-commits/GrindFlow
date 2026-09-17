@@ -28,7 +28,7 @@ import { createServiceClient } from '@/lib/supabase/service';
  * base al insertar.
  */
 function credentialContext(organizationId: string, platform: Platform): string {
-  return `mediavault:credential:${organizationId}:${platform}`;
+  return `grindflow:credential:${organizationId}:${platform}`;
 }
 
 /** Cifra un token opcional. Ausente o vacio se guarda como NULL, no como cifrado de "". */

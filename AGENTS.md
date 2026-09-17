@@ -1,4 +1,4 @@
-# Contexto durable — MediaVault & Traffic Engine
+# Contexto durable — GrindFlow & Traffic Engine
 
 Este archivo es el contexto que sobrevive entre entregas. El `README.md` es una
 foto de la entrega actual; esto es lo que hay que saber siempre.
@@ -195,6 +195,42 @@ merge sino al intentar desplegar.
 | `supabase/tests/` | Arranque de auth, semilla y aserciones |
 | `workers/` | Pipeline de medios en Python |
 
+## Requerimiento anadido: identidad visual y estetica de la interfaz
+
+Solicitado por el arquitecto el 16 de septiembre de 2026, tras el cambio de
+nombre a GrindFlow. No estaba en el PRD original y no tiene fase asignada
+todavia; conviene abordarlo ANTES de construir mas pantallas (analitica,
+finanzas, levantar suspensiones), porque cada pantalla nueva sobre la paleta
+provisional es una pantalla que habra que retocar.
+
+Abarca:
+
+- **Logo** de GrindFlow: version completa y version compacta (para la barra
+  lateral y el favicon), en claro y en oscuro.
+- **Iconografia**: hoy se usa Lucide tal cual. Decidir si se conserva, se ajusta
+  (grosor, tamano) o se sustituye en las secciones principales.
+- **Sistema de color**: la paleta actual (`src/app/globals.css`) es un
+  provisional oscuro en tonos `ink` con acento violeta `brand`. Hay que definir
+  la definitiva: marca, neutros, semanticos (ok/warn/danger) y su version clara
+  si se decide ofrecer tema claro.
+- **Tipografia**: hoy la del sistema. Elegir familia para interfaz y para cifras
+  (tabulares, por los paneles de finanzas).
+- **Estilo de componentes**: tarjetas, botones, formularios, tablas, estados
+  vacios y de error. Los primitivos viven en `src/components/ui/`.
+- **Pagina publica de subida** (`/u/[token]`): es la unica pantalla que ve la
+  modelo desde el movil sin cuenta, y hoy es la mas desnuda.
+- **Pantalla de acceso** y pagina de inicio.
+
+Preguntas abiertas para el arquitecto antes de empezar:
+
+1. ¿Existe ya alguna referencia de marca (color, logo previo, tipografia) o se
+   parte de cero?
+2. ¿Tema oscuro solo, claro solo, o los dos? Hoy es oscuro por defecto porque
+   es una herramienta de muchas horas seguidas y el material se lee mejor asi.
+3. ¿Que tono quiere transmitir el producto: herramienta profesional sobria, o
+   algo mas cercano a la estetica del sector?
+4. ¿Hay restricciones de accesibilidad (contraste minimo, tamano de fuente)?
+
 ## Estado por modulo
 
 | Modulo | Estado |
@@ -214,6 +250,20 @@ merge sino al intentar desplegar.
   la autoritativa en PostgreSQL.
 - ~~Falta la funcion de cifrado de credenciales~~ → `src/lib/crypto/secrets.ts`,
   con 20 pruebas centradas en la deteccion de manipulacion.
+
+## Cambio de nombre (16 de septiembre de 2026)
+
+El producto paso de MediaVault a **GrindFlow**, forma corta **GF**. Se
+renombraron 51 ocurrencias en 22 archivos, incluidos tres identificadores que no
+son solo texto:
+
+- El contexto del cifrado AES-GCM (`grindflow:credential:...`,
+  `grindflow:cloud:...`). Como es el AAD firmado dentro de cada secreto, ningun
+  dato cifrado con el nombre anterior se podria descifrar ahora. No habia
+  ninguno: se cambio antes del primer despliegue precisamente por eso.
+- La cabecera del webhook, `X-GrindFlow-Signature`. Es un contrato con quien
+  reciba webhooks; nadie los recibia todavia.
+- Las cookies de OAuth, `gf_oauth_nonce` y `gf_oauth_carpeta`.
 
 ## Riesgos abiertos
 

@@ -1,8 +1,8 @@
 {
-  "name": "mediavault",
+  "name": "grindflow",
   "version": "0.1.0",
   "private": true,
-  "description": "MediaVault & Traffic Engine — plataforma SaaS multi-tenant de gestion de contenido, distribucion automatizada y embudos de trafico.",
+  "description": "GrindFlow & Traffic Engine — plataforma SaaS multi-tenant de gestion de contenido, distribucion automatizada y embudos de trafico.",
   "type": "module",
   "engines": {
     "node": ">=22"

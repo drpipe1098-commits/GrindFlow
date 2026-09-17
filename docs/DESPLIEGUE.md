@@ -28,7 +28,7 @@ los demas.
 ## Puesta en marcha
 
 ```bash
-git clone <repo> && cd mediavault
+git clone <repo> && cd grindflow
 cp .env.example .env          # compose lee .env, no .env.local
 
 # Genera los tres secretos:
