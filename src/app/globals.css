@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+
+/**
+ * Paleta oscura por defecto. Es una herramienta de trabajo que se usa muchas
+ * horas seguidas y a menudo de noche, y ademas el material que muestra se lee
+ * mejor sobre fondo oscuro que sobre blanco.
+ */
+@theme {
+  --color-ink-950: #0a0a0f;
+  --color-ink-900: #12121a;
+  --color-ink-800: #1b1b26;
+  --color-ink-700: #272734;
+  --color-ink-600: #3a3a4a;
+  --color-ink-400: #8b8ba0;
+  --color-ink-200: #c9c9d6;
+  --color-ink-50: #f4f4f8;
+
+  --color-brand-500: #8b5cf6;
+  --color-brand-400: #a78bfa;
+  --color-brand-600: #7c3aed;
+
+  --color-ok-500: #10b981;
+  --color-warn-500: #f59e0b;
+  --color-danger-500: #ef4444;
+}
+
+html,
+body {
+  background-color: var(--color-ink-950);
+  color: var(--color-ink-50);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco siempre visible: el panel se recorre mucho con teclado. */
+:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}

@@ -1,0 +1,252 @@
+# Contexto durable — MediaVault & Traffic Engine
+
+Este archivo es el contexto que sobrevive entre entregas. El `README.md` es una
+foto de la entrega actual; esto es lo que hay que saber siempre.
+
+---
+
+## Que es el producto
+
+Plataforma SaaS multi-tenant para estudios de contenido adulto y modelos
+independientes. Siete modulos: control de acceso por rol, ingesta y reciclado de
+vault, pipeline de medios, programacion con reglas duras, distribucion
+automatizada, enlaces rastreados y libro de reparto de ingresos.
+
+## Decisiones cerradas
+
+Se acordaron con el cliente antes de escribir codigo. No se cambian sin volver a
+preguntar.
+
+| Tema | Decision |
+|---|---|
+| Stack | Next.js App Router, TypeScript, Tailwind v4, Supabase, Cloudflare R2, Python 3.11 |
+| Despliegue | VPS propio con contenedores (Docker). Supabase sigue aportando base y Auth. Se descarto Vercel: ToS de contenido adulto y limites de FFmpeg |
+| Multi-tenancy | `organizations` + `memberships`, RLS por `organization_id` |
+| Cola | Tabla en Postgres con `FOR UPDATE SKIP LOCKED` |
+| Cumplimiento 2257 | Desde los cimientos, con bloqueo en la base |
+| Idiomas | Bilingue es/en con `next-intl` desde el inicio |
+| Subidas | URL prefirmada tras validar token, con vigencia y limites estrictos |
+| Acortador | `/l/[slug]` en la misma app, sin dominio aparte |
+| CI | Linters, TypeScript, unidad, RLS, build, workers e imagenes Docker |
+| Secretos en reposo | AES-256-GCM con `ENCRYPTION_MASTER_KEY` del entorno |
+| Limite del acortador | Dos capas: memoria del borde y ventana de 60 s en PostgreSQL |
+| Plataformas | Telegram, X, Reddit, Bluesky y webhook generico; credenciales OAuth y API key |
+
+## Reglas que no se rompen
+
+1. **El aislamiento vive en la base, no en la aplicacion.** Toda consulta nueva
+   pasa por RLS. Si algo necesita la clave de servicio, es que falta una politica
+   o que de verdad no hay usuario que autorice la operacion (subida anonima,
+   workers, runners de publicacion). No hay un tercer caso.
+
+2. **Nada se publica sin sanitizar.** Una foto de movil lleva las coordenadas del
+   sitio donde se tomo. El trigger `schedules_enforce_gates` lo impide en la
+   base; no lo debilites para desbloquear una demo.
+
+3. **Nada se publica sin expediente 2257 vigente.** Mismo trigger, misma razon:
+   es requisito legal, no una preferencia de producto.
+
+4. **Los tipos de `database.types.ts` son alias, nunca interfaces.** PostgREST
+   exige `Record<string, unknown>` y una interfaz no obtiene indice implicito. Si
+   alguien la convierte en interfaz, el esquema entero se resuelve a `never` y
+   **las consultas pierden el tipado en silencio**. Ya paso una vez durante la
+   Entrega 1 y costo un buen rato localizarlo.
+
+5. **`@supabase/ssr` tiene que ir al dia.** La version 0.5.2 arrastra una copia
+   antigua de supabase-js cuyas firmas genericas no encajan con las actuales, y
+   el sintoma es exactamente el mismo: todo a `never`, sin ningun error que
+   apunte a la causa.
+
+6. **Las pruebas de RLS no comprueban permisos, intentan violarlos.** Una prueba
+   que solo verifique que cada usuario ve lo suyo no sirve. Hay que intentar leer
+   y escribir datos ajenos y exigir que la base lo impida.
+
+7. **Bajo RLS, un UPDATE ajeno no lanza error: afecta a cero filas.** Por eso
+   existe `tests.assert_affects`. Comprobar esos casos con `assert_rejected` da
+   un falso verde.
+
+8. **Ningun token se escribe en `platform_credentials` fuera de
+   `src/lib/credentials.ts`.** Ese modulo cifra antes de insertar. Escribir por
+   otra via guarda el secreto en claro y la base no puede impedirlo: solo ve
+   texto.
+
+9. **La ventana de deduplicacion de clics no es un parametro.** Vive como
+   constante en el cuerpo de `record_link_click`. Quien invoca esa funcion es
+   anonimo; si pudiera elegir la ventana, pasaria cero y el limite dejaria de
+   existir.
+
+10. **`web` nunca se expone directamente a internet.** El limitador identifica al
+    visitante por `X-Forwarded-For`, que el cliente puede falsificar. Sin un proxy
+    inverso delante que la reescriba, el limite es decorativo.
+
+11. **De la IP no se guarda nunca la direccion, solo su hash con sal.** Ni en la
+    base ni en los registros.
+
+12. **Ningun texto llega al publicador sin pasar por el filtro estricto.** Lo
+    impone el tipo `PublishableCaption`, que solo produce `validateCaption`. Si
+    alguien lo convierte en un `string` corriente para "simplificar", la garantia
+    desaparece y no queda ningun error que lo avise. La prueba con
+    `@ts-expect-error` en `tests/captions.test.ts` existe justo para eso.
+
+13. **Los terminos de la lista dura no son configurables.** Los que sugieren
+    minoria de edad, falta de consentimiento o parentesco no admiten excepcion
+    por organizacion ni por plataforma. No es una preferencia de producto.
+
+14. **Ante un enrutado ambiguo NO se adivina.** Dos perfiles que normalizan
+    igual dejan el archivo sin asignar. Mandarlo a la modelo equivocada es peor:
+    sin asignar alguien lo revisa, mal asignado nadie lo hace y acaba publicado
+    en la cuenta que no era.
+
+15. **Un duplicado se marca, nunca se descarta en silencio.** La fila se conserva
+    con el motivo y el enlace al original. Lo que si se borra es la segunda copia
+    de los bytes en R2.
+
+16. **Un archivo sin perfil no se descarga.** Sin perfil no hay carpeta de R2, y
+    traer gigabytes que nadie reclamo es trabajo tirado.
+
+17. **Los workers de Node entran por `public.claim_jobs`, no por `app.claim_jobs`.**
+    PostgREST solo expone `public`. El envoltorio delega y no duplica logica, y
+    esta concedido solo a `service_role`.
+
+18. **En el triaje, el cliente de servicio solo toca lo que el RLS devolvio.**
+    Primero se actualizan los items con el cliente de sesion; despues se encolan
+    trabajos SOLO para los ids que ese UPDATE devolvio. Al reves, una peticion con
+    ids ajenos encolaria descargas de material de otra agencia.
+
+19. **La coordinacion entre replicas del worker vive en la base, no en el
+    programador.** `jobs_one_live_scan_per_connection` es la unica capa que ven
+    todas a la vez. El rechazo por duplicado es el caso normal, no un error.
+
+20. **Google exige `prompt=consent` ademas de `access_type=offline`.** Sin lo
+    primero, una cuenta que ya autorizo antes no recibe refresh token y la
+    conexion nace muerta sin ningun error visible.
+
+21. **El publicador solo acepta `PublishableCaption`.** El worker vuelve a
+    validar el texto justo antes de enviarlo, porque en la base es una cadena
+    corriente. No es un tramite: entre programar y publicar pueden haber cambiado
+    los destinos verificados.
+
+22. **Un 401 suspende el perfil en esa red, no solo esa publicacion.** Encadenar
+    peticiones con credenciales muertas es el patron que acaba en baneo. Un 429
+    NO suspende: es pasajero.
+
+23. **Un 429 no gasta intento.** `defer_job` decrementa `attempts` a proposito.
+    Contarlo haria que una racha de limites diera el trabajo por muerto sin
+    haberlo intentado de verdad.
+
+24. **Nunca se espera menos de lo que pidio la plataforma.** El margen del
+    backoff se suma, jamas se resta.
+
+25. **Una tabla nueva nace SIN privilegios para `authenticated`.** El
+    `grant ... on all tables` de la migracion 000900 solo alcanzo a las que
+    existian entonces; el sintoma es un "permission denied" que no menciona el
+    RLS por ningun lado. La migracion 001200 dejo puesto un
+    `alter default privileges`, pero conviene comprobarlo con una asercion en
+    cada tabla nueva.
+
+## Topologia de compuertas
+
+```
+lint ──────┐
+typecheck ─┤
+hard-rule ─┤
+rls ───────┼─> validate   (la unica que hay que exigir en la rama principal)
+build ─────┤
+workers ───┤
+docker ────┘
+```
+
+`rls` levanta un PostgreSQL 16 de servicio, aplica el arranque de auth que
+reproduce lo que Supabase da de fabrica, corre las diecisiete migraciones y ejecuta las
+116 aserciones.
+
+La compuerta `docker` construye las dos imagenes de verdad. Existe porque el
+despliegue es por contenedores: un Dockerfile roto no se descubriria al hacer
+merge sino al intentar desplegar.
+
+## Mapa del repositorio
+
+| Ruta | Contenido |
+|---|---|
+| `src/app/[locale]/(panel)/` | Paneles de admin, estudio y modelo |
+| `src/app/[locale]/u/[token]/` | Pagina publica de subida sin cuenta |
+| `src/app/api/uploads/presign/` | Unico endpoint que atiende sin sesion |
+| `src/lib/scheduling/hard-rule.ts` | Motor anti-repeticion, codigo puro |
+| `src/lib/captions/validator.ts` | Filtro estricto y el tipo `PublishableCaption` |
+| `src/lib/captions/provider.ts` | Interfaz del generador; hoy un simulado |
+| `src/lib/captions/pipeline.ts` | Generar -> validar -> reintentar -> fallar cerrado |
+| `src/lib/connectors/provider.ts` | Interfaz comun de nubes; `clients.ts` la factoria |
+| `src/lib/connectors/routing.ts` | Enrutado hibrido, codigo puro |
+| `src/lib/connectors/triage.ts` | Reglas del lote de asignacion |
+| `src/workers/ingest/scheduler.ts` | Que conexiones toca escanear |
+| `src/lib/publishing/errors.ts` | Clasificacion de fallos y espera; codigo puro |
+| `src/lib/publishing/registry.ts` | Registro de destinos; obliga a tenerlos todos |
+| `src/workers/publish/` | Worker de publicacion (Node) |
+| `src/lib/connectors/connection.ts` | Unico camino de entrada y salida de los tokens de nube |
+| `src/workers/ingest/` | Worker de ingesta en Node |
+| `tsconfig.workers.json` | Sustituye `server-only` para ejecutar fuera de Next |
+| `src/lib/crypto/secrets.ts` | Cifrado AES-256-GCM, formato versionado `v1.` |
+| `src/lib/credentials.ts` | Unico camino de entrada y salida de los tokens |
+| `src/lib/rate-limit.ts` | Ventana fija en memoria y hash de IP |
+| `Dockerfile`, `workers/Dockerfile` | Imagenes de panel y workers |
+| `src/lib/supabase/service.ts` | Clave de servicio: omite RLS, marcado `server-only` |
+| `src/middleware.ts` | Redirector `/l/`, i18n y refresco de sesion |
+| `supabase/migrations/` | Diez migraciones, orden alfabetico |
+| `supabase/tests/` | Arranque de auth, semilla y aserciones |
+| `workers/` | Pipeline de medios en Python |
+
+## Estado por modulo
+
+| Modulo | Estado |
+|---|---|
+| 1 — Roles y aislamiento | Completo y probado |
+| 2 — Ingesta y vault | Completo: subidas, Dropbox, Drive, triaje y escaneo automatico. Falta ejecutarlo contra las APIs reales |
+| 3 — Pipeline de medios | Workers escritos; solo la sanitizacion EXIF esta verificada |
+| 4 — Hard Rule | Motor y validador de textos completos y probados. Falta conectar un proveedor de IA real |
+| 5 — Distribucion | Motor completo con Telegram y webhook. X, Reddit y Bluesky registrados sin implementar |
+| 6 — Enlaces y trafico | Acortador y analitica funcionando. Falta el panel de metricas |
+| 7 — Finanzas | Esquema y vista de la modelo. Falta la gestion desde el estudio |
+
+## Riesgos cerrados
+
+- ~~ToS de Vercel y limites de FFmpeg~~ → se pivoto a VPS propio con contenedores.
+- ~~`record_link_click` invocable por `anon` sin limite~~ → dos capas de limite,
+  la autoritativa en PostgreSQL.
+- ~~Falta la funcion de cifrado de credenciales~~ → `src/lib/crypto/secrets.ts`,
+  con 20 pruebas centradas en la deteccion de manipulacion.
+
+## Riesgos abiertos
+
+- **La perdida de `ENCRYPTION_MASTER_KEY` es irreversible.** Sin ella, las
+  credenciales guardadas no se recuperan ni con el volcado completo de la base, y
+  hay que reconectar cada cuenta a mano. Debe respaldarse fuera del servidor.
+- **El cifrado no protege un servidor comprometido en ejecucion**, donde la clave
+  esta en memoria. El paso siguiente, si el producto crece, es un KMS.
+- **La rotacion de clave todavia no esta implementada.** El formato lleva prefijo
+  de version (`v1.`) precisamente para permitirla sin migrar todas las filas de
+  golpe, pero la funcion que reescribe los criptogramas no existe.
+- **Las imagenes Docker se construyen en CI pero no se han arrancado en un
+  servidor.** El primer despliegue real sigue siendo la prueba que falta.
+- **No hay copia de seguridad automatizada** de nada que no cubra Supabase.
+- **La verificacion de Google para los alcances de Drive tarda semanas** y limita
+  a 100 usuarios mientras tanto. Conviene iniciar el tramite antes que el codigo.
+- **Google entrega el refresh token solo en la primera autorizacion** salvo que
+  se pida `prompt=consent`. Perderlo obliga a desconectar y reconectar a mano: es
+  el fallo mas comun de estas integraciones.
+- **Los diccionarios de terminos penalizados son heuristicas observadas**, no
+  reglas publicadas. Ninguna plataforma documenta su lista; habra que ajustarlos
+  cuando cambie el comportamiento real.
+- **Las integraciones no se han ejecutado nunca contra las APIs reales.** El
+  entorno de desarrollo no alcanza internet. La primera conexion de verdad sigue
+  siendo la prueba que falta, en Dropbox y en Drive.
+- **El alcance `drive.readonly` exige verificacion de Google**, con un limite de
+  100 usuarios mientras tanto. El codigo esta listo; el tramite manda.
+- **El primer recorrido de un Drive muy grande puede necesitar varias pasadas.**
+  Tiene un presupuesto de 200 paginas; si se agota no guarda cursor y la
+  siguiente vuelve a empezar. Rehacerlo es barato (los upsert absorben lo ya
+  registrado, no se descarga nada) pero no es instantaneo.
+- **El panel de triaje no tiene pruebas de navegador.** Su logica y sus garantias
+  en la base si estan cubiertas; el renderizado y la seleccion, no.
+- **Nada se ha publicado en Telegram de verdad.** Las pruebas simulan la Bot API.
+- **Falta la pantalla para levantar suspensiones.** La politica RLS ya deja
+  hacerlo al estudio; la vista no existe, asi que hoy habria que tocarlo a mano.
