@@ -33,15 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - id: credentials
-        name: Check synthetic credentials
+      - name: Initialize safe diagnostics artifact
         shell: bash
         run: |
-          if [[ -n "$E2E_USER_PASSWORD" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            python3 - <<'PY'
+          python3 - <<'PY'
           import json
           from datetime import datetime, timezone
 
@@ -50,7 +45,7 @@ jobs:
                   {
                       "generated_at": datetime.now(timezone.utc).isoformat(),
                       "ok": False,
-                      "message": "PRODUCTION_E2E_PASSWORD is not configured.",
+                      "message": "Diagnostics capture did not complete.",
                       "entries": [],
                   },
                   handle,
@@ -58,6 +53,15 @@ jobs:
               )
               handle.write("\n")
           PY
+
+      - id: credentials
+        name: Check synthetic credentials
+        shell: bash
+        run: |
+          if [[ -n "$E2E_USER_PASSWORD" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate diagnostics script
@@ -95,13 +99,17 @@ jobs:
             state="capture failed; inspect the short-lived artifact for the safe status payload"
           fi
 
-          gh issue comment "$ISSUE_NUMBER" --body "          Production diagnostics request: **$state**
+          cat > /tmp/grindflow-diagnostics-status.md <<EOF
+          Production diagnostics request: **$state**
 
           Run ID: `$GITHUB_RUN_ID`
           Artifact: `production-diagnostics-$GITHUB_RUN_ID`
           Retention: **3 days**
 
-          The issue does not contain the diagnostic payload. Authorized agents can read the artifact through GitHub."
+          The issue does not contain the diagnostic payload. Authorized agents can read the artifact through GitHub.
+          EOF
+
+          gh issue comment "$ISSUE_NUMBER" --body-file /tmp/grindflow-diagnostics-status.md
 
       - name: Fail after publishing bridge status
         if: >-
