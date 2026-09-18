@@ -14,36 +14,49 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  COMPOSER_NO_INTERACTION: '1'
+  COMPOSER_NO_AUDIT: '1'
+
 jobs:
   fast:
     name: fast
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       has_php: ${{ steps.scope.outputs.has_php }}
       has_legacy: ${{ steps.scope.outputs.has_legacy }}
+      run_php_quality: ${{ steps.scope.outputs.run_php_quality }}
+      run_tests: ${{ steps.scope.outputs.run_tests }}
       run_database: ${{ steps.scope.outputs.run_database }}
       run_browser: ${{ steps.scope.outputs.run_browser }}
+      run_legacy: ${{ steps.scope.outputs.run_legacy }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
       - id: scope
         name: Detect project scope
         shell: bash
         run: |
           set -euo pipefail
+
           has_php=false
           has_legacy=false
+          run_php_quality=false
+          run_tests=false
           run_database=false
           run_browser=false
+          run_legacy=false
+          force_all=false
 
           [[ -f composer.json ]] && has_php=true
           [[ -f package.json ]] && has_legacy=true
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            run_database=true
-            run_browser=true
+            force_all=true
+            CHANGED="[workflow_dispatch]"
           else
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               BASE="${{ github.event.pull_request.base.sha }}"
@@ -51,27 +64,69 @@ jobs:
             else
               BASE="${{ github.event.before }}"
               HEAD="${{ github.sha }}"
+
               if [[ "$BASE" == "0000000000000000000000000000000000000000" ]]; then
                 BASE="$(git rev-list --max-parents=0 HEAD | tail -1)"
               fi
             fi
 
-            CHANGED="$(git diff --name-only "$BASE" "$HEAD" || true)"
-            echo "$CHANGED"
+            if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$BASE"
+            fi
 
-            if echo "$CHANGED" | grep -Eq '^(database/|app/Models/|app/Jobs/|tests/.*(Database|Tenant|Integration)|composer\.(json|lock))'; then
+            if ! git cat-file -e "$HEAD^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$HEAD"
+            fi
+
+            CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
+            printf '%s\n' "$CHANGED"
+
+            if grep -Eq '^\.github/workflows/grindflow-ci\.yml$' <<<"$CHANGED"; then
+              force_all=true
+            fi
+          fi
+
+          if [[ "$force_all" == "true" ]]; then
+            [[ "$has_php" == "true" ]] && run_php_quality=true
+            [[ "$has_php" == "true" ]] && run_tests=true
+            [[ "$has_php" == "true" ]] && run_database=true
+            [[ "$has_php" == "true" ]] && run_browser=true
+            [[ "$has_legacy" == "true" ]] && run_legacy=true
+          else
+            PHP_CORE='^(app/|bootstrap/|config/|database/|routes/|tests/|public/index\.php$|composer\.(json|lock)$|phpstan\.neon(\.dist)?$|phpunit\.xml(\.dist)?$)'
+            PHP_TESTS='^(app/|bootstrap/|config/|database/|routes/|tests/|resources/views/|public/index\.php$|composer\.(json|lock)$)'
+            DATABASE='^(database/|app/Models/|app/Jobs/|app/Support/Tenancy/|tests/.*(Database|Tenant|MediaVault|Migration|Organization|Membership|Integration)|composer\.(json|lock)$)'
+            BROWSER='^(resources/|public/css/|public/index\.php$|app/Http/|app/Livewire/|app/Providers/|config/|routes/web\.php$|tests/Browser/|scripts/browser-smoke\.sh$|composer\.(json|lock)$|playwright\.)'
+            LEGACY='^(src/|workers/|supabase/|package\.json$|package-lock\.json$|tsconfig[^/]*\.json$|eslint[^/]*|next\.config[^/]*|postcss[^/]*|tailwind[^/]*|Dockerfile$|workers/Dockerfile$|scripts/.*\.(mjs|js|ts)$)'
+
+            if [[ "$has_php" == "true" ]] && grep -Eq "$PHP_CORE" <<<"$CHANGED"; then
+              run_php_quality=true
+            fi
+
+            if [[ "$has_php" == "true" ]] && grep -Eq "$PHP_TESTS" <<<"$CHANGED"; then
+              run_tests=true
+            fi
+
+            if [[ "$has_php" == "true" ]] && grep -Eq "$DATABASE" <<<"$CHANGED"; then
               run_database=true
             fi
 
-            if echo "$CHANGED" | grep -Eq '^(resources/|app/Livewire/|app/Http/|routes/web\.php|tests/Browser/|scripts/browser-smoke\.sh|\.github/workflows/grindflow-ci\.yml|package\.json|playwright\.)'; then
+            if [[ "$has_php" == "true" ]] && grep -Eq "$BROWSER" <<<"$CHANGED"; then
               run_browser=true
+            fi
+
+            if [[ "$has_legacy" == "true" ]] && grep -Eq "$LEGACY" <<<"$CHANGED"; then
+              run_legacy=true
             fi
           fi
 
           echo "has_php=$has_php" >> "$GITHUB_OUTPUT"
           echo "has_legacy=$has_legacy" >> "$GITHUB_OUTPUT"
+          echo "run_php_quality=$run_php_quality" >> "$GITHUB_OUTPUT"
+          echo "run_tests=$run_tests" >> "$GITHUB_OUTPUT"
           echo "run_database=$run_database" >> "$GITHUB_OUTPUT"
           echo "run_browser=$run_browser" >> "$GITHUB_OUTPUT"
+          echo "run_legacy=$run_legacy" >> "$GITHUB_OUTPUT"
 
       - name: Validate repository contracts
         shell: bash
@@ -112,7 +167,6 @@ jobs:
             bash -n scripts/fetch-production-diagnostics.sh
           fi
 
-
       - name: Publish CI context
         shell: bash
         run: |
@@ -122,48 +176,56 @@ jobs:
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- PHP/Laravel present: \`${{ steps.scope.outputs.has_php }}\`"
             echo "- Legacy Node project present: \`${{ steps.scope.outputs.has_legacy }}\`"
+            echo "- PHP quality selected: \`${{ steps.scope.outputs.run_php_quality }}\`"
+            echo "- PHPUnit selected: \`${{ steps.scope.outputs.run_tests }}\`"
             echo "- Database gate selected: \`${{ steps.scope.outputs.run_database }}\`"
             echo "- Browser gate selected: \`${{ steps.scope.outputs.run_browser }}\`"
+            echo "- Legacy gate selected: \`${{ steps.scope.outputs.run_legacy }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   php-quality:
     name: php-quality
     needs: fast
-    if: needs.fast.outputs.has_php == 'true'
+    if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_php_quality == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
           coverage: none
+      - id: composer-cache
+        name: Locate Composer cache
+        shell: bash
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.5-composer-
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress
       - name: Composer validation
         run: composer validate --strict
       - name: Laravel/PHP syntax
         shell: bash
         run: |
           set -euo pipefail
-          find app bootstrap config database routes tests -type f -name '*.php' -print0 2>/dev/null             | xargs -0 -r -n1 php -l
+          find app bootstrap config database routes tests -type f -name '*.php' -print0 2>/dev/null |
+            xargs -0 -r -n1 php -l
       - name: Pint
-        shell: bash
-        run: |
-          if [[ -x vendor/bin/pint ]]; then
-            vendor/bin/pint --test
-          fi
+        run: vendor/bin/pint --test
       - name: Static analysis
-        shell: bash
-        run: |
-          if [[ -x vendor/bin/phpstan ]]; then
-            vendor/bin/phpstan analyse --no-progress
-          fi
+        run: vendor/bin/phpstan analyse --no-progress
 
   tests:
     name: tests
     needs: fast
-    if: needs.fast.outputs.has_php == 'true'
+    if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_tests == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -171,30 +233,31 @@ jobs:
           php-version: '8.5'
           extensions: mbstring, pdo_mysql, pdo_sqlite
           coverage: none
-      - run: composer install --no-interaction --prefer-dist --no-progress
+      - id: composer-cache
+        name: Locate Composer cache
+        shell: bash
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.5-composer-
+      - run: composer install --prefer-dist --no-progress
       - name: Prepare Laravel environment
         shell: bash
         run: |
-          if [[ -f artisan ]]; then
-            cp -n .env.example .env || true
-            php artisan key:generate --force || true
-          fi
+          cp -n .env.example .env || true
+          php artisan key:generate --force
       - name: Test suite
-        shell: bash
-        run: |
-          if [[ -x vendor/bin/pest ]]; then
-            vendor/bin/pest
-          elif [[ -x vendor/bin/phpunit ]]; then
-            vendor/bin/phpunit
-          else
-            echo "No PHP test runner installed yet."
-          fi
+        run: vendor/bin/phpunit
 
   database:
     name: database
     needs: fast
     if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_database == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     services:
       mariadb:
         image: mariadb:11.4
@@ -207,9 +270,9 @@ jobs:
           - 3306:3306
         options: >-
           --health-cmd "healthcheck.sh --connect --innodb_initialized"
-          --health-interval 10s
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 12
     env:
       APP_ENV: testing
       DB_CONNECTION: mysql
@@ -225,21 +288,29 @@ jobs:
           php-version: '8.5'
           extensions: mbstring, pdo_mysql, pdo_sqlite
           coverage: none
-      - run: composer install --no-interaction --prefer-dist --no-progress
+      - id: composer-cache
+        name: Locate Composer cache
+        shell: bash
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.5-composer-
+      - run: composer install --prefer-dist --no-progress
       - name: Migrate test database
         shell: bash
         run: |
-          if [[ -f artisan ]]; then
-            cp -n .env.example .env || true
-            php artisan key:generate --force || true
-            php artisan migrate:fresh --force
-          fi
+          cp -n .env.example .env || true
+          php artisan key:generate --force
+          php artisan migrate:fresh --force
       - name: Database-sensitive tests
         shell: bash
         run: |
           if [[ -x vendor/bin/pest ]]; then
             vendor/bin/pest --group=database || vendor/bin/pest
-          elif [[ -x vendor/bin/phpunit ]]; then
+          else
             vendor/bin/phpunit --group=database
           fi
 
@@ -248,6 +319,7 @@ jobs:
     needs: fast
     if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_browser == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     env:
       APP_ENV: testing
       APP_DEBUG: 'false'
@@ -269,8 +341,18 @@ jobs:
           php-version: '8.5'
           extensions: mbstring, pdo_sqlite
           coverage: none
+      - id: composer-cache
+        name: Locate Composer cache
+        shell: bash
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.5-composer-
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress
       - name: Prepare Laravel browser environment
         shell: bash
         run: |
@@ -308,7 +390,6 @@ jobs:
             exit 1
           fi
       - name: Real browser smoke
-        shell: bash
         run: bash scripts/browser-smoke.sh
       - name: Upload browser diagnostics
         if: failure()
@@ -319,6 +400,7 @@ jobs:
             tests/Browser/artifacts
             storage/logs/browser-server.log
           if-no-files-found: warn
+          retention-days: 3
       - name: Stop Laravel
         if: always()
         shell: bash
@@ -330,15 +412,16 @@ jobs:
   legacy:
     name: legacy
     needs: fast
-    if: needs.fast.outputs.has_legacy == 'true'
+    if: needs.fast.outputs.has_legacy == 'true' && needs.fast.outputs.run_legacy == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
       - name: Legacy validation during migration
         shell: bash
         run: |
@@ -351,6 +434,7 @@ jobs:
     if: always()
     needs: [fast, php-quality, tests, database, browser, legacy]
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - name: Aggregate gates
         shell: bash
