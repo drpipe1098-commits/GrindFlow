@@ -252,6 +252,10 @@ jobs:
       SESSION_DRIVER: file
       QUEUE_CONNECTION: sync
       BASE_URL: http://127.0.0.1:8000
+      E2E_USER_EMAIL: e2e-browser@grindflow.test
+      E2E_USER_NAME: E2E Browser User
+      E2E_ORG_NAME: E2E Browser Workspace
+      E2E_ORG_SLUG: e2e-browser-workspace
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
@@ -266,9 +270,17 @@ jobs:
         run: |
           set -euo pipefail
           cp -n .env.example .env || true
+          rm -f /tmp/grindflow-browser.sqlite
           touch /tmp/grindflow-browser.sqlite
           php artisan key:generate --force
+          php artisan migrate:fresh --force
           mkdir -p storage/logs tests/Browser/artifacts
+
+          E2E_PASSWORD="$(php -r 'echo bin2hex(random_bytes(24));')"
+          echo "E2E_USER_PASSWORD=$E2E_PASSWORD" >> "$GITHUB_ENV"
+          export E2E_USER_PASSWORD="$E2E_PASSWORD"
+
+          php artisan db:seed --class='Database\Seeders\E2eSeeder' --force
       - name: Start Laravel
         shell: bash
         run: |
