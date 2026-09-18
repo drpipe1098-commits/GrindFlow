@@ -1,0 +1,276 @@
+name: GrindFlow CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: grindflow-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    name: fast
+    runs-on: ubuntu-latest
+    outputs:
+      has_php: ${{ steps.scope.outputs.has_php }}
+      has_legacy: ${{ steps.scope.outputs.has_legacy }}
+      run_database: ${{ steps.scope.outputs.run_database }}
+      run_browser: ${{ steps.scope.outputs.run_browser }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: scope
+        name: Detect project scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          has_php=false
+          has_legacy=false
+          run_database=false
+          run_browser=false
+
+          [[ -f composer.json ]] && has_php=true
+          [[ -f package.json ]] && has_legacy=true
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            run_database=true
+            run_browser=true
+          else
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              BASE="${{ github.event.pull_request.base.sha }}"
+              HEAD="${{ github.event.pull_request.head.sha }}"
+            else
+              BASE="${{ github.event.before }}"
+              HEAD="${{ github.sha }}"
+              if [[ "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+                BASE="$(git rev-list --max-parents=0 HEAD | tail -1)"
+              fi
+            fi
+
+            CHANGED="$(git diff --name-only "$BASE" "$HEAD" || true)"
+            echo "$CHANGED"
+
+            if echo "$CHANGED" | grep -Eq '^(database/|app/Models/|app/Jobs/|tests/.*(Database|Tenant|Integration)|composer\.(json|lock))'; then
+              run_database=true
+            fi
+
+            if echo "$CHANGED" | grep -Eq '^(resources/|app/Livewire/|routes/web\.php|tests/Browser/|package\.json|playwright\.)'; then
+              run_browser=true
+            fi
+          fi
+
+          echo "has_php=$has_php" >> "$GITHUB_OUTPUT"
+          echo "has_legacy=$has_legacy" >> "$GITHUB_OUTPUT"
+          echo "run_database=$run_database" >> "$GITHUB_OUTPUT"
+          echo "run_browser=$run_browser" >> "$GITHUB_OUTPUT"
+
+      - name: Validate repository contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f AGENTS.md
+          test -f docs/GRINDFLOW-SPEC.md
+          test -f docs/REQUIREMENTS.md
+          test -f docs/DEVELOPMENT-MODEL.md
+          test -f .coderabbit.yaml
+          test -f .sonarcloud.properties
+
+      - name: Publish CI context
+        shell: bash
+        run: |
+          {
+            echo "## GrindFlow CI"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- PHP/Laravel present: \`${{ steps.scope.outputs.has_php }}\`"
+            echo "- Legacy Node project present: \`${{ steps.scope.outputs.has_legacy }}\`"
+            echo "- Database gate selected: \`${{ steps.scope.outputs.run_database }}\`"
+            echo "- Browser gate selected: \`${{ steps.scope.outputs.run_browser }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  php-quality:
+    name: php-quality
+    needs: fast
+    if: needs.fast.outputs.has_php == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Composer validation
+        run: composer validate --strict
+      - name: Laravel/PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find app bootstrap config database routes tests -type f -name '*.php' -print0 2>/dev/null             | xargs -0 -r -n1 php -l
+      - name: Pint
+        shell: bash
+        run: |
+          if [[ -x vendor/bin/pint ]]; then
+            vendor/bin/pint --test
+          fi
+      - name: Static analysis
+        shell: bash
+        run: |
+          if [[ -x vendor/bin/phpstan ]]; then
+            vendor/bin/phpstan analyse --no-progress
+          fi
+
+  tests:
+    name: tests
+    needs: fast
+    if: needs.fast.outputs.has_php == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare Laravel environment
+        shell: bash
+        run: |
+          if [[ -f artisan ]]; then
+            cp -n .env.example .env || true
+            php artisan key:generate --force || true
+          fi
+      - name: Test suite
+        shell: bash
+        run: |
+          if [[ -x vendor/bin/pest ]]; then
+            vendor/bin/pest
+          elif [[ -x vendor/bin/phpunit ]]; then
+            vendor/bin/phpunit
+          else
+            echo "No PHP test runner installed yet."
+          fi
+
+  database:
+    name: database
+    needs: fast
+    if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_database == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: grindflow_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d grindflow_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: grindflow_test
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Migrate test database
+        shell: bash
+        run: |
+          if [[ -f artisan ]]; then
+            cp -n .env.example .env || true
+            php artisan key:generate --force || true
+            php artisan migrate:fresh --force
+          fi
+      - name: Database-sensitive tests
+        shell: bash
+        run: |
+          if [[ -x vendor/bin/pest ]]; then
+            vendor/bin/pest --group=database || vendor/bin/pest
+          elif [[ -x vendor/bin/phpunit ]]; then
+            vendor/bin/phpunit
+          fi
+
+  browser:
+    name: browser
+    needs: fast
+    if: needs.fast.outputs.has_php == 'true' && needs.fast.outputs.run_browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Browser gate placeholder
+        run: |
+          echo "Browser gate selected."
+          echo "Enable Laravel Dusk or Playwright when the Laravel UI foundation lands."
+
+  legacy:
+    name: legacy
+    needs: fast
+    if: needs.fast.outputs.has_legacy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Legacy validation during migration
+        shell: bash
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run test
+
+  validate:
+    name: validate
+    if: always()
+    needs: [fast, php-quality, tests, database, browser, legacy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate gates
+        shell: bash
+        env:
+          FAST: ${{ needs.fast.result }}
+          PHP_QUALITY: ${{ needs.php-quality.result }}
+          TESTS: ${{ needs.tests.result }}
+          DATABASE: ${{ needs.database.result }}
+          BROWSER: ${{ needs.browser.result }}
+          LEGACY: ${{ needs.legacy.result }}
+        run: |
+          set -euo pipefail
+          printf '%-14s %s\n' fast "$FAST"
+          printf '%-14s %s\n' php-quality "$PHP_QUALITY"
+          printf '%-14s %s\n' tests "$TESTS"
+          printf '%-14s %s\n' database "$DATABASE"
+          printf '%-14s %s\n' browser "$BROWSER"
+          printf '%-14s %s\n' legacy "$LEGACY"
+
+          for result in "$FAST" "$PHP_QUALITY" "$TESTS" "$DATABASE" "$BROWSER" "$LEGACY"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "A required GrindFlow CI gate failed or was cancelled."; exit 1 ;;
+            esac
+          done
