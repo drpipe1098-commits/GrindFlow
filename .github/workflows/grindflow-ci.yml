@@ -166,6 +166,9 @@ jobs:
           if [[ -f scripts/fetch-production-diagnostics.sh ]]; then
             bash -n scripts/fetch-production-diagnostics.sh
           fi
+          if [[ -f scripts/run-production-migrations.sh ]]; then
+            bash -n scripts/run-production-migrations.sh
+          fi
 
       - name: Publish CI context
         shell: bash
