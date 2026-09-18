@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   production-smoke:
@@ -22,6 +23,8 @@ jobs:
       E2E_USER_PASSWORD: ${{ secrets.PRODUCTION_E2E_PASSWORD }}
       ATTEMPTS: '15'
       WAIT_SECONDS: '20'
+      FAILURE_ISSUE_TITLE: '[AUTO] Production Smoke Failure'
+      CONFIG_ISSUE_TITLE: '[AUTO] Production Smoke Not Configured'
     steps:
       - uses: actions/checkout@v4
 
@@ -37,27 +40,110 @@ jobs:
             {
               echo "## Production smoke skipped"
               echo
-              echo "Repository secret `PRODUCTION_E2E_PASSWORD` is not configured."
+              echo "Repository secret PRODUCTION_E2E_PASSWORD is not configured."
               echo "Configure it once in GitHub repository Actions secrets; no SSH is required."
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report missing smoke credentials
+        if: steps.credentials.outputs.configured == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --search "$CONFIG_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if [[ -z "$issue_number" ]]; then
+            cat > /tmp/grindflow-config-issue.md <<'EOF'
+          The authenticated production smoke cannot run because the repository
+          secret `PRODUCTION_E2E_PASSWORD` is not configured.
+
+          This is a one-time GitHub configuration task. No SSH is required.
+
+          Until it is configured, GrindFlow cannot automatically verify the
+          authenticated Dashboard/System routes or publish application diagnostics
+          from production failures.
+          EOF
+
+            gh issue create --title "$CONFIG_ISSUE_TITLE" --body-file /tmp/grindflow-config-issue.md
+          fi
+
+      - name: Close missing-credentials notice
+        if: steps.credentials.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --search "$CONFIG_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" --body "Production E2E credentials are now configured. Closing this automatic notice."
+            gh issue close "$issue_number"
           fi
 
       - name: Validate smoke script
         if: steps.credentials.outputs.configured == 'true'
         run: bash -n scripts/production-smoke.sh
 
-      - name: Authenticated production smoke
+      - id: smoke
+        name: Authenticated production smoke
         if: steps.credentials.outputs.configured == 'true'
-        run: bash scripts/production-smoke.sh
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/production-smoke.sh 2>&1 | tee production-smoke.log
 
-      - name: Publish production result
-        if: steps.credentials.outputs.configured == 'true' && success()
+      - name: Publish production failure diagnostics
+        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo "## Production smoke failed"
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo "Target: $BASE_URL"
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "### Sanitized smoke / application diagnostics"
+            echo
+            echo '````text'
+            tail -n 220 production-smoke.log
+            echo '````'
+          } > /tmp/grindflow-production-failure.md
+
+          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" --body-file /tmp/grindflow-production-failure.md
+          else
+            gh issue create --title "$FAILURE_ISSUE_TITLE" --body-file /tmp/grindflow-production-failure.md
+          fi
+
+      - name: Publish production recovery
+        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           {
             echo "## Production smoke passed"
             echo
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- Target: \`$BASE_URL\`"
-            echo "- Checked: \`/up\`, \`/login\`, authenticated \`/dashboard\`, authenticated \`/admin/system\`"
+            echo "Commit: $GITHUB_SHA"
+            echo "Target: $BASE_URL"
+            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" --body "Production smoke recovered on commit $GITHUB_SHA. Closing the automatic incident."
+            gh issue close "$issue_number"
+          fi
+
+      - name: Fail workflow after publishing diagnostics
+        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'failure'
+        shell: bash
+        run: exit 1
