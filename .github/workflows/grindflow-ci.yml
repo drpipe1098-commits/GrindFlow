@@ -105,6 +105,9 @@ jobs:
           if [[ -f scripts/browser-smoke.sh ]]; then
             bash -n scripts/browser-smoke.sh
           fi
+          if [[ -f scripts/production-smoke.sh ]]; then
+            bash -n scripts/production-smoke.sh
+          fi
 
 
       - name: Publish CI context
