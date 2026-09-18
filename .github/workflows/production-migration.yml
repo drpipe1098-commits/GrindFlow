@@ -105,7 +105,7 @@ jobs:
             echo "Approved pending count: **1**"
             echo "Retention: **7 days**"
             echo
-            echo "This bridge runs only for an OWNER comment matching `/production-migrate 1` exactly."
+            printf '%s\n' 'This bridge runs only for an OWNER comment matching `/production-migrate 1` exactly.'
             echo "It refuses to migrate if production reports a different pending count."
           } > /tmp/grindflow-production-migration-status.md
 
@@ -116,6 +116,6 @@ jobs:
           always() &&
           (
             steps.credentials.outputs.configured != 'true' ||
-            steps.migrate.outcome == 'failure'
+            steps.migrate.outcome != 'success'
           )
         run: exit 1
