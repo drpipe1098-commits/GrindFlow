@@ -84,6 +84,14 @@ jobs:
           test -f .coderabbit.yaml
           test -f .sonarcloud.properties
 
+      - name: Validate deployment scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f scripts/deploy-hostinger.sh ]]; then
+            bash -n scripts/deploy-hostinger.sh
+          fi
+
       - name: Publish CI context
         shell: bash
         run: |
