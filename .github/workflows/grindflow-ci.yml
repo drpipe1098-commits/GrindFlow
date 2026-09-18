@@ -95,6 +95,15 @@ jobs:
             bash -n scripts/deploy-hostinger.sh
           fi
 
+      - name: Validate automation scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f scripts/sonar-pr-comment.py ]]; then
+            python3 -m py_compile scripts/sonar-pr-comment.py
+          fi
+
+
       - name: Publish CI context
         shell: bash
         run: |
