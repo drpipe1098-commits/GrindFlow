@@ -250,7 +250,13 @@ jobs:
           cp -n .env.example .env || true
           php artisan key:generate --force
       - name: Test suite
-        run: vendor/bin/phpunit
+        shell: bash
+        run: |
+          if [[ -x vendor/bin/pest ]]; then
+            vendor/bin/pest
+          else
+            vendor/bin/phpunit
+          fi
 
   database:
     name: database
