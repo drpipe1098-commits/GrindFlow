@@ -25,6 +25,7 @@ jobs:
       WAIT_SECONDS: '20'
       FAILURE_ISSUE_TITLE: '[AUTO] Production Smoke Failure'
       CONFIG_ISSUE_TITLE: '[AUTO] Production Smoke Not Configured'
+      MEDIA_STORAGE_ISSUE_TITLE: '[AUTO] Media Storage Not Configured'
     steps:
       - uses: actions/checkout@v4
 
@@ -91,6 +92,44 @@ jobs:
         continue-on-error: true
         shell: bash
         run: bash scripts/production-smoke.sh >production-smoke.log 2>&1
+
+      - name: Report media storage readiness
+        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --search "$MEDIA_STORAGE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if grep -Fq 'MEDIA_STORAGE_READY=1' production-smoke.log; then
+            echo "Media object storage is configured." >> "$GITHUB_STEP_SUMMARY"
+
+            if [[ -n "$issue_number" ]]; then
+              gh issue comment "$issue_number" --body "Media object storage is now configured on production commit $GITHUB_SHA. Closing this automatic notice."
+              gh issue close "$issue_number"
+            fi
+          else
+            {
+              echo "## Media object storage setup required"
+              echo
+              echo "Production smoke passed, but Direct upload storage is not configured."
+              echo "Quick upload remains available."
+              echo
+              echo "Commit: $GITHUB_SHA"
+              echo "Target: $BASE_URL"
+              echo
+              echo "Configure the S3-compatible media storage environment and bucket CORS."
+              echo "No SSH is required if the hosting/provider UI exposes environment settings."
+            } > /tmp/grindflow-media-storage.md
+
+            cat /tmp/grindflow-media-storage.md >> "$GITHUB_STEP_SUMMARY"
+
+            if [[ -n "$issue_number" ]]; then
+              gh issue comment "$issue_number" --body-file /tmp/grindflow-media-storage.md
+            else
+              gh issue create --title "$MEDIA_STORAGE_ISSUE_TITLE" --body-file /tmp/grindflow-media-storage.md
+            fi
+          fi
 
       - name: Upload short-lived smoke diagnostics
         if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'failure'
