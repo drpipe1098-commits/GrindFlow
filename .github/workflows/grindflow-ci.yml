@@ -83,6 +83,9 @@ jobs:
           test -f docs/DEVELOPMENT-MODEL.md
           test -f .coderabbit.yaml
           test -f .sonarcloud.properties
+          if [[ -f composer.json ]]; then
+            test -f composer.lock
+          fi
 
       - name: Validate deployment scripts
         shell: bash
