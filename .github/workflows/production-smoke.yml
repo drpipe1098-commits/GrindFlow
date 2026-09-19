@@ -147,76 +147,8 @@ jobs:
         shell: bash
         run: |
           {
-            if grep -Eq '^MIGRATIONS_PENDING=[1-9][0-9]*
-          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
-
-          if [[ -n "$issue_number" ]]; then
-            gh issue comment "$issue_number" --body-file /tmp/grindflow-production-failure.md
-          else
-            gh issue create --title "$FAILURE_ISSUE_TITLE" --body-file /tmp/grindflow-production-failure.md
-          fi
-
-      - name: Publish production recovery
-        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          {
-            echo "## Production smoke passed"
-            echo
-            echo "Commit: $GITHUB_SHA"
-            echo "Target: $BASE_URL"
-            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
-
-          if [[ -n "$issue_number" ]]; then
-            gh issue comment "$issue_number" --body "Production smoke recovered on commit $GITHUB_SHA. Closing the automatic incident."
-            gh issue close "$issue_number"
-          fi
-
-      - name: Fail workflow after publishing diagnostics
-        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'failure'
-        shell: bash
-        run: exit 1
- production-smoke.log; then
-              pending="$(grep -E '^MIGRATIONS_PENDING=[1-9][0-9]*
-          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
-
-          if [[ -n "$issue_number" ]]; then
-            gh issue comment "$issue_number" --body-file /tmp/grindflow-production-failure.md
-          else
-            gh issue create --title "$FAILURE_ISSUE_TITLE" --body-file /tmp/grindflow-production-failure.md
-          fi
-
-      - name: Publish production recovery
-        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          {
-            echo "## Production smoke passed"
-            echo
-            echo "Commit: $GITHUB_SHA"
-            echo "Target: $BASE_URL"
-            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
-
-          if [[ -n "$issue_number" ]]; then
-            gh issue comment "$issue_number" --body "Production smoke recovered on commit $GITHUB_SHA. Closing the automatic incident."
-            gh issue close "$issue_number"
-          fi
-
-      - name: Fail workflow after publishing diagnostics
-        if: steps.credentials.outputs.configured == 'true' && steps.smoke.outcome == 'failure'
-        shell: bash
-        run: exit 1
- production-smoke.log | tail -1 | cut -d= -f2)"
+            if grep -Eq '^MIGRATIONS_PENDING=[1-9][0-9]*$' production-smoke.log; then
+              pending="$(grep -E '^MIGRATIONS_PENDING=[1-9][0-9]*$' production-smoke.log | tail -1 | cut -d= -f2)"
               echo "## Production smoke blocked by pending migrations"
               echo
               echo "Pending migration count: **$pending**"
@@ -260,7 +192,7 @@ jobs:
             echo
             echo "Commit: $GITHUB_SHA"
             echo "Target: $BASE_URL"
-            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system"
+            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system, organization Vault"
           } >> "$GITHUB_STEP_SUMMARY"
 
           issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
