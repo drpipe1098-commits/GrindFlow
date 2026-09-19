@@ -152,7 +152,13 @@ jobs:
               echo "## Production smoke blocked by pending migrations"
               echo
               echo "Pending migration count: **$pending**"
-              echo "This is an operator-controlled schema blocker, not evidence of an application HTTP 500."
+              if grep -Fxq 'VAULT_READ_ONLY=ok' production-smoke.log; then
+                echo "Authenticated read-only Vault check passed despite pending migrations."
+              elif grep -Fxq 'VAULT_READ_ONLY=failed' production-smoke.log; then
+                echo "**Additional defect:** authenticated read-only Vault check failed. Inspect the short-lived diagnostics artifact; do not classify the failure as migrations alone."
+              else
+                echo "Authenticated read-only Vault check was not completed."
+              fi
               echo "Inspect the exact pending batch in Admin > System and verify an external restorable backup before approving migrations."
               echo "This workflow never executes migrations."
             else
