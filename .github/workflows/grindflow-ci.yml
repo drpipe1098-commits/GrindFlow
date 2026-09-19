@@ -214,14 +214,7 @@ jobs:
           find app bootstrap config database routes tests -type f -name '*.php' -print0 2>/dev/null |
             xargs -0 -r -n1 php -l
       - name: Pint
-        shell: bash
-        run: |
-          if vendor/bin/pint --test; then
-            exit 0
-          fi
-          vendor/bin/pint
-          git diff -- app/Services/Scheduling/ContentScheduler.php
-          exit 1
+        run: vendor/bin/pint --test
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress
 
