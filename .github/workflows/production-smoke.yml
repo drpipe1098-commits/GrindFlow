@@ -192,7 +192,7 @@ jobs:
             echo
             echo "Commit: $GITHUB_SHA"
             echo "Target: $BASE_URL"
-            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system, organization Vault"
+            echo "Checked: /up, /login, authenticated /dashboard, authenticated /admin/system"
           } >> "$GITHUB_STEP_SUMMARY"
 
           issue_number="$(gh issue list --state open --search "$FAILURE_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
