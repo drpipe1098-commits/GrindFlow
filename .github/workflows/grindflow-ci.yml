@@ -165,6 +165,8 @@ jobs:
           done
 
           python3 -m py_compile scripts/readme-dashboard.py
+          python3 -m py_compile scripts/release-version.py
+          python3 scripts/release-version.py --self-test
           python3 -m py_compile scripts/production-migration-inventory.py
           [[ -f scripts/sonar-pr-comment.py ]] && python3 -m py_compile scripts/sonar-pr-comment.py
 
@@ -173,6 +175,13 @@ jobs:
 
       - name: Production smoke migration-blocker contract
         run: bash scripts/production-smoke-contract.sh
+
+      - name: Verify deliberate product-version transition
+        if: github.event_name != 'workflow_dispatch'
+        run: >-
+          python3 scripts/release-version.py
+          --base "${{ needs.preflight.outputs.base_sha }}"
+          --head "${{ needs.preflight.outputs.head_sha }}"
 
       - name: Verify README dashboard matches the exact delta
         if: github.event_name != 'workflow_dispatch'
