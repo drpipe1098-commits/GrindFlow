@@ -168,6 +168,7 @@ jobs:
           python3 -m py_compile scripts/release-version.py
           python3 scripts/release-version.py --self-test
           python3 -m py_compile scripts/production-migration-inventory.py
+          python3 -m py_compile scripts/production-migration-contract.py
           python3 -m py_compile scripts/production-runtime-readiness.py
           python3 -m py_compile scripts/production-runtime-readiness-contract.py
           [[ -f scripts/sonar-pr-comment.py ]] && python3 -m py_compile scripts/sonar-pr-comment.py
@@ -179,6 +180,7 @@ jobs:
         run: |
           python3 scripts/production-runtime-readiness-contract.py
           bash scripts/production-smoke-contract.sh
+          python3 scripts/production-migration-contract.py
 
       - name: Verify deliberate product-version transition
         if: github.event_name != 'workflow_dispatch'
