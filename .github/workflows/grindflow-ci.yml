@@ -157,6 +157,7 @@ jobs:
             scripts/deploy-hostinger.sh \
             scripts/browser-smoke.sh \
             scripts/production-smoke.sh \
+            scripts/production-smoke-contract.sh \
             scripts/fetch-production-diagnostics.sh \
             scripts/run-production-migrations.sh
           do
@@ -165,6 +166,9 @@ jobs:
 
           python3 -m py_compile scripts/readme-dashboard.py
           [[ -f scripts/sonar-pr-comment.py ]] && python3 -m py_compile scripts/sonar-pr-comment.py
+
+      - name: Production smoke migration-blocker contract
+        run: bash scripts/production-smoke-contract.sh
 
       - name: Verify README dashboard matches the exact delta
         if: github.event_name != 'workflow_dispatch'
